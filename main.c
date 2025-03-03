@@ -9,7 +9,7 @@
 
 uint8_t memoria_dados[TAM_MEMORIA];
 uint8_t memoria_instr[TAM_MEMORIA];
-uint8_t pilha[TAM_PILHA];
+uint8_t *pilha[TAM_PILHA];
 uint16_t ultima_instr = 0;
 
 typedef struct {
@@ -57,6 +57,10 @@ void load_memoria() {
             ultima_instr = endereco + 2;
         }
     }
+    for (int i = 0; i < TAM_PILHA; i++) {
+        pilha[i] = (uint16_t *)&memoria_dados[INICIO_PILHA - (TAM_PILHA + (i * 2))];
+    }
+
     fclose(arquivo);
 }
 
@@ -72,6 +76,9 @@ void apresentar_conteudo(SIMULADOR simu) {
 
     printf("\nMemoria de Dados: \n");
     for (int i = 0; i < TAM_MEMORIA; i += 2) {
+        if (i >= (INICIO_PILHA - TAM_PILHA) && i <= INICIO_PILHA) {
+            continue;
+        }
         if (memoria_dados[i] != 0 || memoria_dados[i + 1] != 0) {
             printf("%04X: 0x%02X%02X\n", i, memoria_dados[i + 1], memoria_dados[i]);
         }
@@ -80,8 +87,8 @@ void apresentar_conteudo(SIMULADOR simu) {
 
     printf("\nPilha: \n");
     for (int i = 0; i < TAM_PILHA; i += 2) {
-        printf("%04X: 0x%02X%02X\n", INICIO_PILHA - TAM_PILHA + i, pilha[i+1], pilha[i]);
-    }
+        printf("%04X: 0x%04X\n", INICIO_PILHA - i, *((uint16_t *)&memoria_dados[INICIO_PILHA - i - 2]));
+    }    
     printf("----------------------------------\n");
     printf("Flags: \nC = %d \nOv = %d \nZ = %d \nS = %d \n", simu.FLAGS.C, simu.FLAGS.Ov, simu.FLAGS.Z, simu.FLAGS.S);
 }
@@ -103,7 +110,6 @@ SIMULADOR decodificador(SIMULADOR simu){
         uint8_t rd, rm, rn, imm;
 
         switch (opcode) {
-
             case 0b0000: 
                 if (simu.IR == 0x0000){ // NOP
                     apresentar_conteudo(simu);
@@ -112,21 +118,30 @@ SIMULADOR decodificador(SIMULADOR simu){
                     last2b = simu.IR & 0b11;
                     if ((simu.IR >> 11) & 0b1){ // 11º bit ativo
                         switch (last2b) {
-                            imm = (simu.IR >> 2) & 0b111111111;  
                             case 0b00: //JMP
+                                imm = (simu.IR >> 2) & 0b111111111;
+                                printf("imediato antes %d\n", imm);
+                                printf("imediato depois %d\n", imm);
+                                printf("chegou aqui %d\n", simu.PC);
                                 simu.PC += imm;
+                                printf("depois %d\n", simu.PC);
                                 break;
                             case 0b01: //JEQ
+                                imm = (simu.IR >> 2) & 0b111111111;
+                                // printf("chegou aqui Z = %d S = %d \n", simu.FLAGS.Z, simu.FLAGS.S);
                                 if (simu.FLAGS.Z == 1 && simu.FLAGS.S == 0){
+                                    // printf("pasou aqui Z = %d S = %d \n", simu.FLAGS.Z, simu.FLAGS.S);
                                     simu.PC += imm;
                                 }
                                 break;
                             case 0b10: //JLT
+                                imm = (simu.IR >> 2) & 0b111111111;
                                 if (simu.FLAGS.Z == 0 && simu.FLAGS.S == 1){
                                     simu.PC += imm;
                                 }
                                 break;
                             case 0b11: //JGT
+                                imm = (simu.IR >> 2) & 0b111111111;
                                 if (simu.FLAGS.Z == 0 && simu.FLAGS.S == 0){
                                     simu.PC += imm;
                                 }
@@ -137,61 +152,41 @@ SIMULADOR decodificador(SIMULADOR simu){
                     }else{
                         switch (last2b) {
                             case 0b01: // PSH
-                                if (simu.SP > INICIO_PILHA - TAM_PILHA) { // Verifica se há espaço na pilha
-                                    simu.SP -= 2; // Decrementa antes de armazenar
-                            
-                                    rn = (simu.IR >> 2) & 0b111; // Extrai o registrador Rn
-                                    uint16_t index = simu.SP - (INICIO_PILHA - TAM_PILHA); // Ajusta índice da pilha
-                                    
-                                    pilha[index] = simu.R[rn] & 0xFF;         // Byte menos significativo
-                                    pilha[index + 1] = (simu.R[rn] >> 8) & 0xFF; // Byte mais significativo
+                                if (simu.SP > INICIO_PILHA - TAM_PILHA) {
+                                    rn = (simu.IR >> 2) & 0b111;
+                                    memoria_dados[simu.SP] = (simu.R[rn] & 0xFF);
+                                    memoria_dados[simu.SP + 1] = (simu.R[rn] >> 8) & 0xFF;
+                                    simu.SP -= 2;
                                 } else {
                                     printf("Erro: Pilha cheia!\n");
                                 }
                                 break;
-                
-                            case 0b10: // POP
-                                if (simu.SP >= INICIO_PILHA - TAM_PILHA && simu.SP < INICIO_PILHA) { // Verifica se há elementos na pilha
-
                             
-                                    rd = (simu.IR >> 8) & 0b111; // Extrai o registrador Rd
-                                    uint16_t index = simu.SP - (INICIO_PILHA - TAM_PILHA); // Ajusta índice da pilha
-
-                                    simu.R[rd] = pilha[index] | (pilha[index + 1] << 8); // Recupera o valor
-                                    simu.SP += 2; // Incrementa após recuperar o valor
+                            case 0b10: // POP
+                                if (simu.SP >= INICIO_PILHA - TAM_PILHA && simu.SP < INICIO_PILHA) {
+                                    rd = (simu.IR >> 8) & 0b111;
+                                    simu.SP += 2;
+                                    simu.R[rd] = memoria_dados[simu.SP] | (memoria_dados[simu.SP + 1] << 8);
+                            
                                 } else {
                                     printf("Erro: Pilha vazia!\n");
                                 }
-                                break;
-                        
-                            
-                            
+                                break;                            
 
                             case 0b11: // CMP
                                 rm = (simu.IR >> 5) & 0b111;
                                 rn = (simu.IR >> 2) & 0b111;
 
-                                if ((simu.R[rm] == simu.R[rn]) && simu.R[rm] == 0) {
+                                if (simu.R[rm] == simu.R[rn]) {
                                     simu.FLAGS.Z = 1;
                                 } else {
                                     simu.FLAGS.Z = 0;
                                 }
-                                if (((simu.R[rm] - simu.R[rn]) >> 15) & 0b1) {
+                                if (simu.R[rm] < simu.R[rn]) {
                                     simu.FLAGS.S = 1;
                                 } else {
                                     simu.FLAGS.S = 0;
                                 }
-                                if (simu.R[rm] < simu.R[rn]) {
-                                    simu.FLAGS.C = 1;
-                                } else {
-                                    simu.FLAGS.C = 0;
-                                }
-                                if (((simu.R[rm] >> 15) == (simu.R[rn] >> 15)) && ((simu.R[rm] >> 15) != ((simu.R[rm] == simu.R[rn]) >> 15))) {   // Verifica se o resultado tem sinal diferente
-                                    simu.FLAGS.Ov = 1;
-                                } else {
-                                    simu.FLAGS.Ov = 0;
-                                }
-                        
                                 break;
                             default:
                                 break;
