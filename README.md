@@ -1,7 +1,7 @@
 # simulador_cpu
 
 Este é um projeto desenvolvido na cadeira de Arquitetura de Computadores que visa simular o funcionamento de um processador de 16 bits.
-Instruído pelo professor Cristiano Bacelar, nossa equipe implementou um software na linguagem C que recebia valores hexadecimais e em lia0os em binários, e apartir dos bits decodificava instruções para o processador
+Instruído pelo professor Cristiano Bacelar, nossa equipe implementou um software na linguagem C que recebia valores hexadecimais e em lia eles em binários, e apartir dos bits decodificava instruções para o processador
 Sendo elas:
 ```bash
 NOP      SUB      PSH      SHR
