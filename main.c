@@ -1,3 +1,19 @@
+/* TRABALHO AP02 - ARQUITETURA DE COMPUTADORES - PROF: CRISTIANO BACELAR
+
+    MEMBROS:
+        CÍCERO HIGOR DE MEDEIROS CARNAÚBA - 574228
+        GABRIEL RIBEIRO DE SOUSA - 567908
+        LAYSSA DA SILVA DE OLIVEIRA - 564923
+
+    EX DE INSTRUÇÕES:
+        0000:0x1803
+        0002:0x1905
+        0004:0x4220
+
+    DIGITE O ENDEREÇO DO ARQUIVO COM AS INSTRUÇÕES COMO NO EXEMPLO:
+        C:\Users\SEUNOME\Desktop\PASTA_DO_ARQUIVO\ARQUIVO.txt
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -7,10 +23,11 @@
 #define TAM_PILHA 16
 #define INICIO_PILHA 0x8200
 
-uint8_t memoria_dados[TAM_MEMORIA];
-uint8_t memoria_instr[TAM_MEMORIA];
-uint8_t *pilha[TAM_PILHA];
-uint16_t ultima_instr = 0;
+uint8_t memoria_dados[TAM_MEMORIA]; // Memoria principal de dados
+uint8_t memoria_instr[TAM_MEMORIA]; // Memoria para armazenar as instruções
+uint8_t memoria_acessada[TAM_MEMORIA]; // Usado para saber qual end da memoria foram acessados
+uint8_t *pilha[TAM_PILHA]; // Array de ponteiro que aponta para os end reservados na memoria principal para a Pilha
+uint16_t ultima_instr = 0; // Armazena o end da ultima instrução para encerrar o programa
 
 typedef struct {
     uint8_t C;
@@ -21,10 +38,10 @@ typedef struct {
 
 typedef struct {
     uint16_t R[8];
-    uint16_t PC;   // Program Counter
-    uint16_t IR;   // Instruction Register
-    uint16_t SP;   // Ponterio da Pilha
-    Flags FLAGS; 
+    uint16_t PC;
+    uint16_t IR;
+    uint16_t SP;
+    Flags FLAGS;
 } SIMULADOR;
 
 
@@ -51,6 +68,7 @@ void load_memoria() {
     uint16_t endereco, conteudo;
 
     while (fgets(linha, sizeof(linha), arquivo) != NULL) {
+
         if (sscanf(linha, "%hx:0x%hx", &endereco, &conteudo) == 2) {
             memoria_instr[endereco] = conteudo & 0xFF;
             memoria_instr[endereco + 1] = conteudo >> 8;
@@ -65,21 +83,22 @@ void load_memoria() {
 }
 
 void apresentar_conteudo(SIMULADOR simu) {
-    printf("----------------------------------");
+    printf("\n----------------------------------");
     printf("\nRegistradores:\n\n");
     for (int i = 0; i <= 7; i++) {
         printf("R%d: 0x%04X\n", i, simu.R[i]);
     }
     printf("\nPC: 0x%04X\n", simu.PC);
     printf("SP: 0x%04X\n", simu.SP);
+    printf("IR: 0x%04X\n", simu.IR);
     printf("----------------------------------\n");
 
     printf("\nMemoria de Dados: \n");
-    for (int i = 0; i < TAM_MEMORIA; i += 2) {
+    for (int i = 0; i <= TAM_MEMORIA; i += 2) {
         if (i >= (INICIO_PILHA - TAM_PILHA) && i <= INICIO_PILHA) {
             continue;
         }
-        if (memoria_dados[i] != 0 || memoria_dados[i + 1] != 0) {
+        if (memoria_acessada[i] == 1 || memoria_acessada[i + 1] == 1) {
             printf("%04X: 0x%02X%02X\n", i, memoria_dados[i + 1], memoria_dados[i]);
         }
     }
@@ -96,16 +115,14 @@ void apresentar_conteudo(SIMULADOR simu) {
 SIMULADOR decodificador(SIMULADOR simu){
     while(1){
 
-        if (simu.PC >= ultima_instr) { // caso precise parar com a última instrução
+        if (simu.PC >= ultima_instr) { 
             return simu;
         }
 
-        // printf("PC: 0x%04X\n", simu.PC);
-        simu.IR = (memoria_instr[simu.PC+1] << 8) | (memoria_instr[simu.PC] );
-        // printf("IR: 0x%04X\n", simu.IR);
+        simu.IR = ((memoria_instr[simu.PC+1] << 8) | (memoria_instr[simu.PC] ));
         simu.PC += 2;
+
         uint8_t opcode = (simu.IR >> 12) & 0b1111;
-        // printf("opcode: 0b%04d\n", opcode);
         uint8_t last2b;
         uint8_t rd, rm, rn, imm;
 
@@ -116,41 +133,41 @@ SIMULADOR decodificador(SIMULADOR simu){
                     break;
                 } else{
                     last2b = simu.IR & 0b11;
-                    if ((simu.IR >> 11) & 0b1){ // 11º bit ativo
+                    if ((simu.IR >> 11) & 0b1){
+                        imm = (simu.IR >> 2) & 0b111111111;
+                        if (imm % 2 != 0){
+                            imm+=1;
+                        }
                         switch (last2b) {
                             case 0b00: //JMP
-                                imm = (simu.IR >> 2) & 0b111111111;
-                                printf("imediato antes %d\n", imm);
-                                printf("imediato depois %d\n", imm);
-                                printf("chegou aqui %d\n", simu.PC);
                                 simu.PC += imm;
-                                printf("depois %d\n", simu.PC);
                                 break;
+
                             case 0b01: //JEQ
-                                imm = (simu.IR >> 2) & 0b111111111;
-                                // printf("chegou aqui Z = %d S = %d \n", simu.FLAGS.Z, simu.FLAGS.S);
                                 if (simu.FLAGS.Z == 1 && simu.FLAGS.S == 0){
-                                    // printf("pasou aqui Z = %d S = %d \n", simu.FLAGS.Z, simu.FLAGS.S);
                                     simu.PC += imm;
                                 }
                                 break;
+
                             case 0b10: //JLT
-                                imm = (simu.IR >> 2) & 0b111111111;
                                 if (simu.FLAGS.Z == 0 && simu.FLAGS.S == 1){
                                     simu.PC += imm;
                                 }
                                 break;
+
                             case 0b11: //JGT
-                                imm = (simu.IR >> 2) & 0b111111111;
                                 if (simu.FLAGS.Z == 0 && simu.FLAGS.S == 0){
                                     simu.PC += imm;
                                 }
                                 break;
+
                             default:
-                                break;
+                                printf("Instrução de formato indefinido: %04X\n", simu.IR);
+                                return simu;
                         }
                     }else{
                         switch (last2b) {
+
                             case 0b01: // PSH
                                 if (simu.SP > INICIO_PILHA - TAM_PILHA) {
                                     rn = (simu.IR >> 2) & 0b111;
@@ -170,8 +187,9 @@ SIMULADOR decodificador(SIMULADOR simu){
                             
                                 } else {
                                     printf("Erro: Pilha vazia!\n");
+                                    // printf("IR: %04X, PC: %04X\n", simu.IR, simu.PC);
                                 }
-                                break;                            
+                                break;
 
                             case 0b11: // CMP
                                 rm = (simu.IR >> 5) & 0b111;
@@ -188,8 +206,10 @@ SIMULADOR decodificador(SIMULADOR simu){
                                     simu.FLAGS.S = 0;
                                 }
                                 break;
+
                             default:
-                                break;
+                                printf("Instrução de formato indefinido: 0x%04X\n", simu.IR);
+                                return simu;
                         }
                     }
                     break;
@@ -199,46 +219,44 @@ SIMULADOR decodificador(SIMULADOR simu){
                 if (simu.IR == 0xFFFF){
                     return simu;
                 }else{
-                    printf("Instrução de formato indefinido: 0x04X\n", simu.IR);
+                    printf("Instrução de formato indefinido: 0x%04X\n", simu.IR);
                     return simu;
                 }
 
             case 0b0001: // MOV
                 rd = (simu.IR >> 8) & 0b111;
-                if ((simu.IR >> 11) & 0b1) { // 11º bit ativo
+                if ((simu.IR >> 11) & 0b1) { // Com imm
                     imm = simu.IR & 0b11111111;
                     simu.R[rd] = imm;
-                    // printf("%04X, %d\n",simu.R[rd], rd);
-                } else {
+
+                } else { // Com Registrador
                     rm = (simu.IR >> 5) & 0b111;
                     simu.R[rd] = simu.R[rm];
-                    // printf("%04X, %d\n",simu.R[rd], rd);
                 }
                 break;
 
             case 0b0010: // STR
                 rm = (simu.IR >> 5) & 0b111;
 
-                if ((simu.IR >> 11) & 0b1) { // 11º bit ativo
-                    // printf("\nSTR de imediato\n");
+                if ((simu.IR >> 11) & 0b1) { // Com imm
                     imm = ((simu.IR >> 8) & 0b111);
-                    // printf("%d\n", imm);
                     imm = imm << 5; 
-                    // printf("%d\n", imm);
                     imm = imm | (simu.IR & 0b11111);
-                    // printf("%d\n", imm);
 
                     memoria_dados[simu.R[rm]] = imm & 0xFF;
-                    // printf("imm: %d\n", imm);
-                    // printf("Guardado em: %04X\n", simu.R[rm]);
-                    // printf("Memoria: %04X\n", memoria_dados[simu.R[rm]]);
                     memoria_dados[simu.R[rm] + 1] = (imm >> 8);
-                } else {
-                    // printf("\nSTR de registradores\n");
+
+                    memoria_acessada[simu.R[rm]] = 1;
+                    memoria_acessada[simu.R[rm] +1] = 1;
+
+                } else { // Com registradores
                     rn = (simu.IR >> 2) & 0b111;
-                    memoria_dados[simu.R[rn]] = simu.R[rm] & 0xFF;
-                    // printf("rn: %04X, Conteúdo: %04X, Memoria: %04X\n", simu.R[rn], simu.R[rm], memoria_dados[simu.R[rn]]);
+
+                    memoria_dados[simu.R[rm]] = simu.R[rn] & 0xFF;
                     memoria_dados[simu.R[rm] + 1] = simu.R[rn] >> 8;
+
+                    memoria_acessada[simu.R[rm]] = 1;
+                    memoria_acessada[simu.R[rm] +1] = 1;
                 }
                 break;
 
@@ -254,7 +272,6 @@ SIMULADOR decodificador(SIMULADOR simu){
                 rn = (simu.IR >> 2) & 0b111;
 
                 simu.R[rd] = simu.R[rm] + simu.R[rn];
-                // printf("%04X, %d\n",simu.R[rd], rd);
 
                 if (simu.R[rm] > (0xFFFF - simu.R[rn])){
                     simu.FLAGS.C = 1;
@@ -270,12 +287,15 @@ SIMULADOR decodificador(SIMULADOR simu){
 
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
 
-                if (((simu.R[rm] >> 15) == (simu.R[rn] >> 15)) && ((simu.R[rm] >> 15) != (simu.R[rd] >> 15))) {   // Verifica se o resultado tem sinal diferente
-                    simu.FLAGS.Ov = 1;
-                } else {
+                if ((((simu.R[rm]^simu.R[rn]) >> 15) & 0b1) == 0) {
+                    if ((((simu.R[rn]^simu.R[rd]) >> 15) & 0b1) == 1) {
+                        simu.FLAGS.Ov = 1;
+                    }else{
+                        simu.FLAGS.Ov = 0;
+                    }
+                }else{
                     simu.FLAGS.Ov = 0;
                 }
-        
 
                 break;
 
@@ -284,13 +304,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                 rm = (simu.IR >> 5) & 0b111;
                 rn = (simu.IR >> 2) & 0b111;
             
-                // printf("\n--- SUB ---\n");
-                // printf("Registrador Rm (R%d): 0x%04X\n", rm, simu.R[rm]);
-                // printf("Registrador Rn (R%d): 0x%04X\n", rn, simu.R[rn]);
-            
                 simu.R[rd] = simu.R[rm] - simu.R[rn];
-            
-                // printf("Resultado (R%d): 0x%04X\n", rd, simu.R[rd]);
 
                 if (simu.R[rm] < simu.R[rn]) {
                     simu.FLAGS.C = 1;
@@ -311,10 +325,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                 } else {
                     simu.FLAGS.Ov = 0;
                 }
-            
-                // printf("Flags após SUB: C=%d, Z=%d, S=%d, Ov=%d\n", simu.FLAGS.C, simu.FLAGS.Z, simu.FLAGS.S, simu.FLAGS.Ov);
                 break;
-            
 
             case 0b0110: //MUL
                 rd = (simu.IR >> 8) & 0b111;
@@ -337,8 +348,8 @@ SIMULADOR decodificador(SIMULADOR simu){
 
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
 
-                if ((((simu.R[rm]^simu.R[rn]) >> 15) & 0b1) == 0) { //sinais iguais nos dois primeiros registradores
-                    if ((((simu.R[rn]^simu.R[rd]) >> 15) & 0b1) == 1) { // sinal diferente no resultado
+                if ((((simu.R[rm]^simu.R[rn]) >> 15) & 0b1) == 0) {
+                    if ((((simu.R[rn]^simu.R[rd]) >> 15) & 0b1) == 1) {
                         simu.FLAGS.Ov = 1;
                     }else{
                         simu.FLAGS.Ov = 0;
@@ -346,9 +357,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                 }else{
                     simu.FLAGS.Ov = 0;
                 }
-
                 break;
-
 
             case 0b0111: //AND
                 rd = (simu.IR >> 8) & 0b111;
@@ -364,7 +373,6 @@ SIMULADOR decodificador(SIMULADOR simu){
                 }
 
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-
                 break;
             
             case 0b1000: //ORR
@@ -373,7 +381,6 @@ SIMULADOR decodificador(SIMULADOR simu){
                 rn = (simu.IR >> 2) & 0b111;
 
                 simu.R[rd] = simu.R[rm] | simu.R[rn];
-
                 if ((simu.R[rd]) == 0){
                     simu.FLAGS.Z = 1;
                 }else{
@@ -381,7 +388,6 @@ SIMULADOR decodificador(SIMULADOR simu){
                 }
 
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-
                 break;
 
             case 0b1001: //NOT
@@ -396,9 +402,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                     simu.FLAGS.Z = 0;
                 }
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-
                 break;
-
                 
             case 0b1010: //XOR
                 rd = (simu.IR >> 8) & 0b111;
@@ -414,9 +418,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                 }
 
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-            
                 break;
-
                 
             case 0b1011: //SHR
                 rd = (simu.IR >> 8) & 0b111;
@@ -432,9 +434,7 @@ SIMULADOR decodificador(SIMULADOR simu){
                     simu.FLAGS.Z = 0;
                 }
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-                
                 break;
-
                 
             case 0b1100: //SHL
                 rd = (simu.IR >> 8) & 0b111;
@@ -456,33 +456,27 @@ SIMULADOR decodificador(SIMULADOR simu){
                 } else {
                     simu.FLAGS.Ov = 0;
                 }
-
                 break;
                 
             case 0b1101: //ROR
                 rd = (simu.IR >> 8) & 0b111;
                 rm = (simu.IR >> 5) & 0b111;
-                simu.FLAGS.C = simu.R[rm] & 0b1;
-                simu.R[rd] = (simu.R[rm] >> 1) | (simu.FLAGS.C << 15);
 
-
+                simu.R[rd] = (simu.R[rm] >> 1) | ((simu.R[rm] & 0b1) << 15);
                 if (simu.R[rd] == 0){
                     simu.FLAGS.Z = 1;
                 }else {
                     simu.FLAGS.Z = 0;
                 }
+
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-
-
                 break;
                 
             case 0b1110: //ROL
                 rd = (simu.IR >> 8) & 0b111;
                 rm = (simu.IR >> 5) & 0b111;
-                
-                simu.FLAGS.C = (simu.R[rm] >> 15) & 0b1;
 
-                simu.R[rd] = (simu.R[rm] << 1) | simu.FLAGS.C;
+                simu.R[rd] = (simu.R[rm] << 1) | ((simu.R[rm] >> 15) & 0b1);
 
                 if (simu.R[rd] == 0){
                     simu.FLAGS.Z = 1;
@@ -490,12 +484,10 @@ SIMULADOR decodificador(SIMULADOR simu){
                     simu.FLAGS.Z = 0;
                 }
                 simu.FLAGS.S = (simu.R[rd]>> 15) & 0b1;
-
-
                 break;
 
             default:
-                printf("Instrução de formato indefinido: 0x04X\n", simu.IR);
+                printf("Instrução de formato indefinido: 0x%04X\n", simu.IR);
                 return simu;
         }
 

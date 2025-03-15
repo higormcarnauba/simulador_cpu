@@ -1,0 +1,46 @@
+> Teste LDR
+0000:0x18FE
+0002:0x1B0F
+0004:0x200C
+0006:0x3100
+0008:0x1D10
+000A:0x1A1E
+000C:0x20A8
+000E:0x36A0
+
+> Decodificação
+MOV R0 = #254 (endereço para buscar/guardar)
+MOV R3 = #15
+STR [R0] = R3
+LDR R1 = [R0]
+MOV R5 = #16 (endereço para buscar/guardar)
+MOV R2 = #30
+STR [R5] = R2
+LDR R6 = [R5]
+
+> Resultado final
+Registers
+    R0: 0x00fe
+    R1: 0x000f
+    R2: 0x001e
+    R3: 0x000f
+    R4: 0x0000
+    R5: 0x0010
+    R6: 0x001e
+    R7: 0x0000
+    PC: 0x0010
+    SP: 0x8200
+Data Memory
+   [0x0010]: 0x001e
+   [0x00fe]: 0x000f
+Stack
+   [0x8200]: 0x0000
+   [0x81fe]: 0x0000
+   [0x81fc]: 0x0000
+   [0x81fa]: 0x0000
+   [0x81f8]: 0x0000
+   [0x81f6]: 0x0000
+   [0x81f4]: 0x0000
+   [0x81f2]: 0x0000
+Flags
+    Ca:0 Ov:0 S:0 Z:0
