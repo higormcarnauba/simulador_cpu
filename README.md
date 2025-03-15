@@ -14,7 +14,7 @@ ADD      XOR      JLT
 
 ## 🚀 Como Usar
 
-O código pede um arquivo.txt para identificar as intruções, o arquivo deve estar no formato <endereço>: <conteudo> com os valores em hexadecimal
+O código pede um arquivo.txt para identificar as intruções, o arquivo deve estar no formato <endereço>:<valores> com os valores em hexadecimal
 então o código pede o diretorio do arquivo, e deve ser escrito como no exemplo
 ```bash
 Digite o caminho do arquivo: C:\Users\SEUUSER\Desktop\PASTA\PASTA\arquivo.txt
