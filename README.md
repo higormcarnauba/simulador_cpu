@@ -26,6 +26,6 @@ Caso tenha dúvidas ou sugestões, entre em contato:
 
 - **Autor:** Cícero Higor  
 - **E-mail:** higormc2015@gmail.com  
-- **Repositório:** [GitHub](#https://github.com/higormcarnauba)
+- **Repositório:** [GitHub](https://github.com/higormcarnauba)
 
 ---
